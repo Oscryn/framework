@@ -1,5 +1,14 @@
 <?php
 
+use Oscryn\Database\DBConnector;
+use Oscryn\Encryption\Encrypter;
+use Oscryn\Http\Csrf;
+use Oscryn\Http\Request;
+use Oscryn\Http\Response;
+use Oscryn\Http\Session;
+use Oscryn\Support\Dumper;
+use Oscryn\View\View;
+
 if (!function_exists('loadEnv')) {
     function loadEnv(string $path): void
     {
@@ -58,77 +67,81 @@ if (!function_exists('app_env')) {
 if (!function_exists('encrypt')) {
     function encrypt(mixed $value): string
     {
-        return \Oscryn\Encryption\Encrypter::get()->encrypt($value);
+        return Encrypter::get()->encrypt($value);
     }
 }
 
 if (!function_exists('decrypt')) {
     function decrypt(string $payload): mixed
     {
-        return \Oscryn\Encryption\Encrypter::get()->decrypt($payload);
+        return Encrypter::get()->decrypt($payload);
     }
 }
 
 if (!function_exists('csrf_token')) {
     function csrf_token(): string
     {
-        return \Oscryn\Http\Csrf::token();
+        return Csrf::token();
     }
 }
 
 if (!function_exists('csrf_field')) {
     function csrf_field(): string
     {
-        return \Oscryn\Http\Csrf::field();
+        return Csrf::field();
     }
 }
 
 if (!function_exists('flash')) {
     function flash(string $key, mixed $value): void
     {
-        \Oscryn\Http\Session::flash($key, $value);
+        Session::flash($key, $value);
     }
 }
 
 if (!function_exists('get_flash')) {
     function get_flash(string $key, mixed $default = null): mixed
     {
-        return \Oscryn\Http\Session::getFlash($key, $default);
+        return Session::getFlash($key, $default);
     }
 }
 
 if (!function_exists('redirect')) {
-    function redirect(string $location, int $status = 302): \Oscryn\Http\Response
+    function redirect(string $location, int $status = 302): Response
     {
-        return (new \Oscryn\Http\Response)->redirect($location, $status);
+        return (new Response)->redirect($location, $status);
     }
 }
 
 if (!function_exists('db')) {
-    function db(): \PDO
+    function db(): PDO
     {
-        return \Oscryn\Database\DBConnector::connection();
+        return DBConnector::connection();
     }
 }
 
 if (!function_exists('request')) {
-    function request(): \Oscryn\Http\Request
+    function request(): Request
     {
-        return \Oscryn\Http\Request::capture();
+        return Request::capture();
     }
 }
 
 if (!function_exists('view')) {
-    function view(string $template, array $data = [], int $status = 200): \Oscryn\Http\Response
+    function view(string $template, array $data = [], int $status = 200): Response
     {
-        return \Oscryn\View\View::make($template, $data, $status);
+        return View::make($template, $data, $status);
     }
 }
 
 if (!function_exists('dd')) {
     function dd(mixed ...$values): void
     {
-        \Oscryn\Support\Dumper::dump('dd', ...$values);
+        if (empty($values)) {
+            throw new InvalidArgumentException('dd() requires at least one argument.');
+        }
+
+        Dumper::dump('dd', ...$values);
         exit(1);
     }
 }
@@ -136,6 +149,6 @@ if (!function_exists('dd')) {
 if (!function_exists('live_dump')) {
     function live_dump(mixed ...$values): mixed
     {
-        return \Oscryn\Support\Dumper::dump('live_dump', ...$values);
+        return Dumper::dump('live_dump', ...$values);
     }
 }

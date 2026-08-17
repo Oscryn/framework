@@ -1,0 +1,42 @@
+#!/usr/bin/env php
+<?php
+
+$dir = __DIR__;
+$appRoot = null;
+
+for ($i = 0; $i < 8; $i++) {
+    if (is_file($dir.'/vendor/autoload.php')) {
+        $appRoot = $dir;
+        break;
+    }
+
+    $parent = dirname($dir);
+
+    if ($parent === $dir) {
+        break;
+    }
+
+    $dir = $parent;
+}
+
+if ($appRoot === null) {
+    fwrite(STDERR, "Could not locate vendor/autoload.php\n");
+    exit(1);
+}
+
+require $appRoot.'/vendor/autoload.php';
+
+if (function_exists('loadEnv')) {
+    loadEnv($appRoot.'/.env');
+}
+
+$modelsDir = $argv[1] ?? $appRoot.'/app/Models';
+
+if (!is_dir($modelsDir)) {
+    fwrite(STDERR, "Models directory not found: {$modelsDir}\n");
+    exit(1);
+}
+
+foreach (\Oscryn\Support\IdeHelper::generate($modelsDir) as $line) {
+    echo $line.PHP_EOL;
+}

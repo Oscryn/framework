@@ -4,6 +4,7 @@ namespace Oscryn\Database;
 
 use InvalidArgumentException;
 use PDO;
+use Throwable;
 
 abstract class DBConnector
 {
@@ -24,6 +25,37 @@ abstract class DBConnector
         }
 
         return self::$connection;
+    }
+
+    public static function beginTransaction(): void
+    {
+        static::connection()->beginTransaction();
+    }
+
+    public static function commit(): void
+    {
+        static::connection()->commit();
+    }
+
+    public static function rollback(): void
+    {
+        static::connection()->rollBack();
+    }
+
+    public static function transaction(callable $callback): mixed
+    {
+        static::connection()->beginTransaction();
+
+        try {
+            $result = $callback();
+            static::connection()->commit();
+
+            return $result;
+        } catch (Throwable $e) {
+            static::connection()->rollBack();
+
+            throw $e;
+        }
     }
 
     public static function ensureDatabaseExists(): bool

@@ -2,20 +2,31 @@
 
 namespace Oscryn\Extensions;
 
+use JsonSerializable;
 use Oscryn\Database\Casts\CastsAttributes;
 use Oscryn\Database\DBConnector;
+use Oscryn\Database\Paginator;
 use Oscryn\Database\QueryBuilder;
+use Oscryn\Database\Relations\BelongsTo;
+use Oscryn\Database\Relations\HasMany;
 use ReflectionClass;
+use RuntimeException;
 
-abstract class Model extends DBConnector
+abstract class Model extends DBConnector implements JsonSerializable
 {
     protected const TABLE = '';
+    protected const TIMESTAMPS = true;
+    protected const SOFT_DELETES = false;
 
     protected array $attributes = [];
 
     protected array $casts = [];
 
     protected array $fillable = [];
+
+    protected array $relations = [];
+
+    protected bool $exists = false;
 
     public function __construct(array $attributes = [])
     {
@@ -31,6 +42,16 @@ abstract class Model extends DBConnector
         return strtolower((new ReflectionClass(static::class))->getShortName()).'s';
     }
 
+    public static function usesTimestamps(): bool
+    {
+        return static::TIMESTAMPS;
+    }
+
+    public static function softDeletes(): bool
+    {
+        return static::SOFT_DELETES;
+    }
+
     public static function query(): QueryBuilder
     {
         return new QueryBuilder(static::class, static::table());
@@ -41,14 +62,45 @@ abstract class Model extends DBConnector
         return static::query()->get();
     }
 
+    public static function count(): int
+    {
+        return static::query()->count();
+    }
+
     public static function find(mixed $id): ?static
     {
         return static::query()->find($id);
     }
 
+    public static function create(array $attributes): static
+    {
+        $model = new static($attributes);
+        $model->save();
+
+        return $model;
+    }
+
+    public static function with(...$relations): QueryBuilder
+    {
+        return static::query()->with(...$relations);
+    }
+
+    public static function paginate(int $perPage = 15, ?int $page = null): Paginator
+    {
+        return static::query()->paginate($perPage, $page);
+    }
+
     public static function fromRow(array $row): static
     {
-        return (new static)->forceFill($row);
+        $model = (new static)->forceFill($row);
+        $model->exists = true;
+
+        return $model;
+    }
+
+    public static function __callStatic(string $method, array $parameters): mixed
+    {
+        return static::query()->{$method}(...$parameters);
     }
 
     public function fill(array $attributes): static
@@ -106,6 +158,131 @@ abstract class Model extends DBConnector
         return array_key_exists($key, $this->casts);
     }
 
+    public function getKey(): mixed
+    {
+        return $this->getAttribute('id');
+    }
+
+    public function getKeyName(): string
+    {
+        return 'id';
+    }
+
+    public function exists(): bool
+    {
+        return $this->exists;
+    }
+
+    public function save(): bool
+    {
+        return $this->exists ? $this->performUpdate() : $this->performInsert();
+    }
+
+    public function update(array $attributes): bool
+    {
+        if (!$this->exists) {
+            $this->fill($attributes);
+
+            return $this->save();
+        }
+
+        $this->fill($attributes);
+
+        return $this->performUpdate();
+    }
+
+    public function delete(): bool
+    {
+        if (static::softDeletes()) {
+            return $this->performSoftDelete();
+        }
+
+        return $this->performDelete();
+    }
+
+    public function forceDelete(): bool
+    {
+        if (!$this->exists || $this->getKey() === null) {
+            return false;
+        }
+
+        $deleted = static::query()->where('id', $this->getKey())->withTrashed()->delete() > 0;
+
+        if ($deleted) {
+            $this->exists = false;
+        }
+
+        return $deleted;
+    }
+
+    public function restore(): bool
+    {
+        if (!$this->exists || $this->getKey() === null) {
+            return false;
+        }
+
+        static::query()->where('id', $this->getKey())->withTrashed()->update(['deleted_at' => null]);
+        $this->attributes['deleted_at'] = null;
+
+        return true;
+    }
+
+    public function trashed(): bool
+    {
+        return $this->getAttribute('deleted_at') !== null;
+    }
+
+    public function hasMany(string $related, ?string $foreignKey = null, ?string $localKey = null): HasMany
+    {
+        return new HasMany($this, $related, $foreignKey ?? static::foreignKeyFrom(static::class), $localKey ?? 'id');
+    }
+
+    public function belongsTo(string $related, ?string $foreignKey = null, ?string $ownerKey = null): BelongsTo
+    {
+        return new BelongsTo($this, $related, $foreignKey ?? static::foreignKeyFrom($related), $ownerKey ?? 'id');
+    }
+
+    public static function foreignKeyFrom(string $related): string
+    {
+        return strtolower((new ReflectionClass($related))->getShortName()).'_id';
+    }
+
+    public function getRelation(string $name): mixed
+    {
+        return $this->relations[$name] ?? null;
+    }
+
+    public function setRelation(string $name, mixed $value): void
+    {
+        $this->relations[$name] = $value;
+    }
+
+    public function hasRelation(string $name): bool
+    {
+        return array_key_exists($name, $this->relations);
+    }
+
+    public function getRelations(): array
+    {
+        return $this->relations;
+    }
+
+    public function toArray(): array
+    {
+        $values = [];
+
+        foreach ($this->attributes as $key => $value) {
+            $values[$key] = $this->getAttribute($key);
+        }
+
+        return $values;
+    }
+
+    public function jsonSerialize(): mixed
+    {
+        return $this->toArray();
+    }
+
     protected function castAttributeForSet(string $key, mixed $value): mixed
     {
         $cast = $this->casts[$key];
@@ -143,6 +320,63 @@ abstract class Model extends DBConnector
         };
     }
 
+    protected function performInsert(): bool
+    {
+        if (static::usesTimestamps()) {
+            $now = date('Y-m-d H:i:s');
+            $this->attributes['created_at'] ??= $now;
+            $this->attributes['updated_at'] ??= $now;
+        }
+
+        $id = static::query()->insert($this->attributes);
+        $this->attributes['id'] = $id;
+        $this->exists = true;
+
+        return true;
+    }
+
+    protected function performUpdate(): bool
+    {
+        if ($this->getKey() === null) {
+            throw new RuntimeException('Cannot update a model without a primary key.');
+        }
+
+        if (static::usesTimestamps()) {
+            $this->attributes['updated_at'] = date('Y-m-d H:i:s');
+        }
+
+        static::query()->where('id', $this->getKey())->update($this->attributes);
+
+        return true;
+    }
+
+    protected function performDelete(): bool
+    {
+        if (!$this->exists || $this->getKey() === null) {
+            return false;
+        }
+
+        $deleted = static::query()->where('id', $this->getKey())->delete() > 0;
+
+        if ($deleted) {
+            $this->exists = false;
+        }
+
+        return $deleted;
+    }
+
+    protected function performSoftDelete(): bool
+    {
+        if (!$this->exists || $this->getKey() === null) {
+            return false;
+        }
+
+        $this->attributes['deleted_at'] = date('Y-m-d H:i:s');
+        $this->performUpdate();
+
+        return true;
+    }
+
     private function asJson(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_SLASHES);
@@ -155,6 +389,10 @@ abstract class Model extends DBConnector
 
     public function __get(string $key): mixed
     {
+        if ($this->hasRelation($key)) {
+            return $this->getRelation($key);
+        }
+
         return $this->getAttribute($key);
     }
 

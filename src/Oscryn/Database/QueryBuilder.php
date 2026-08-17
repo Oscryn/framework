@@ -3,6 +3,7 @@
 namespace Oscryn\Database;
 
 use InvalidArgumentException;
+use Oscryn\Extensions\Model;
 use PDO;
 
 class QueryBuilder
@@ -16,6 +17,9 @@ class QueryBuilder
     private array $orders = [];
     private ?int $limit = null;
     private ?int $offset = null;
+
+    private bool $withTrashed = false;
+    private array $with = [];
 
     public function __construct(string $model, string $table)
     {
@@ -69,17 +73,38 @@ class QueryBuilder
         return $this;
     }
 
+    public function withTrashed(): static
+    {
+        $this->withTrashed = true;
+
+        return $this;
+    }
+
+    public function with(array|string ...$relations): static
+    {
+        foreach ($relations as $relation) {
+            foreach ((array) $relation as $name) {
+                $this->with[] = $name;
+            }
+        }
+
+        return $this;
+    }
+
     public function get(): array
     {
         $stmt = $this->pdo->prepare($this->toSql());
         $stmt->execute($this->bindings);
 
         $model = $this->model;
-
-        return array_map(
+        $models = array_map(
             static fn (array $row): object => $model::fromRow($row),
             $stmt->fetchAll(PDO::FETCH_ASSOC)
         );
+
+        $this->eagerLoad($models);
+
+        return $models;
     }
 
     public function first(): ?object
@@ -92,15 +117,68 @@ class QueryBuilder
         return $this->where('id', $id)->first();
     }
 
-    public function count(): int
+    public function create(array $attributes): Model
     {
-        $sql = 'SELECT COUNT(*) FROM '.$this->table;
+        return $this->model::create($attributes);
+    }
 
-        if ($this->wheres !== []) {
-            $sql .= ' WHERE '.implode(' AND ', $this->wheres);
+    public function insert(array $values): int
+    {
+        $columns = [];
+        $placeholders = [];
+        $bindings = [];
+
+        foreach ($values as $key => $value) {
+            $columns[] = '`'.$this->column($key).'`';
+            $placeholders[] = '?';
+            $bindings[] = $value;
         }
 
+        if ($columns === []) {
+            throw new InvalidArgumentException('Cannot insert an empty row.');
+        }
+
+        $sql = 'INSERT INTO '.$this->table.' ('.implode(', ', $columns).')'
+            .' VALUES ('.implode(', ', $placeholders).')';
         $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function update(array $values): int
+    {
+        $sets = [];
+        $bindings = [];
+
+        foreach ($values as $key => $value) {
+            $sets[] = '`'.$this->column($key).'` = ?';
+            $bindings[] = $value;
+        }
+
+        if ($sets === []) {
+            throw new InvalidArgumentException('Cannot update an empty row.');
+        }
+
+        $sql = 'UPDATE '.$this->table.' SET '.implode(', ', $sets).$this->whereSql();
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(array_merge($bindings, $this->bindings));
+
+        return $stmt->rowCount();
+    }
+
+    public function delete(): int
+    {
+        $sql = 'DELETE FROM '.$this->table.$this->whereSql();
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bindings);
+
+        return $stmt->rowCount();
+    }
+
+    public function count(): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM '.$this->table.$this->whereSql());
         $stmt->execute($this->bindings);
 
         return (int) $stmt->fetchColumn();
@@ -111,13 +189,22 @@ class QueryBuilder
         return $this->count() > 0;
     }
 
+    public function paginate(int $perPage = 15, ?int $page = null): Paginator
+    {
+        $page = $page ?? max(1, (int) ($_GET['page'] ?? 1));
+        $total = $this->count();
+
+        $items = (clone $this)
+            ->limit($perPage)
+            ->offset(($page - 1) * $perPage)
+            ->get();
+
+        return new Paginator($items, $total, $perPage, $page);
+    }
+
     public function toSql(): string
     {
-        $sql = 'SELECT * FROM '.$this->table;
-
-        if ($this->wheres !== []) {
-            $sql .= ' WHERE '.implode(' AND ', $this->wheres);
-        }
+        $sql = 'SELECT * FROM '.$this->table.$this->whereSql();
 
         if ($this->orders !== []) {
             $sql .= ' ORDER BY '.implode(', ', $this->orders);
@@ -132,6 +219,29 @@ class QueryBuilder
         }
 
         return $sql;
+    }
+
+    protected function whereSql(): string
+    {
+        $clauses = $this->wheres;
+
+        if (!$this->withTrashed && $this->model::softDeletes()) {
+            $clauses[] = '`deleted_at` IS NULL';
+        }
+
+        return $clauses === [] ? '' : ' WHERE '.implode(' AND ', $clauses);
+    }
+
+    protected function eagerLoad(array $models): void
+    {
+        if ($models === [] || $this->with === []) {
+            return;
+        }
+
+        foreach ($this->with as $name) {
+            $segment = explode('.', $name)[0];
+            $models[0]->$segment()->eagerLoad($models, $segment);
+        }
     }
 
     private function column(string $column): string

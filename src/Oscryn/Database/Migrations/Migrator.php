@@ -2,8 +2,9 @@
 
 namespace Oscryn\Database\Migrations;
 
-use PDO;
 use Oscryn\Database\DBConnector;
+use PDO;
+use RuntimeException;
 
 class Migrator
 {
@@ -195,7 +196,7 @@ PHP;
         $class = $this->classFromFileName($file);
 
         if (!class_exists($class)) {
-            throw new \RuntimeException("Migration class \"{$class}\" not found in {$file}.");
+            throw new RuntimeException("Migration class \"{$class}\" not found in {$file}.");
         }
 
         return new $class();

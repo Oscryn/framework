@@ -5,6 +5,18 @@ namespace Oscryn\Exceptions;
 use ErrorException;
 use Throwable;
 
+use const T_ABSTRACT, T_ARRAY, T_AS, T_ATTRIBUTE, T_BOOLEAN_AND, T_BOOLEAN_OR, T_BREAK, T_CASE;
+use const T_CATCH, T_CLASS, T_CLONE, T_COALESCE, T_COALESCE_EQUAL, T_COMMENT, T_CONST, T_CONSTANT_ENCAPSED_STRING;
+use const T_CONTINUE, T_DEC, T_DEFAULT, T_DNUMBER, T_DO, T_DOC_COMMENT, T_DOUBLE_ARROW, T_ECHO;
+use const T_ELSE, T_ELSEIF, T_EMPTY, T_ENCAPSED_AND_WHITESPACE, T_ENDFOR, T_ENDFOREACH, T_ENDIF, T_ENDSWITCH;
+use const T_ENDWHILE, T_ENUM, T_EXIT, T_EXTENDS, T_FINAL, T_FOR, T_FOREACH, T_FUNCTION;
+use const T_GLOBAL, T_GOTO, T_IF, T_IMPLEMENTS, T_INC, T_INCLUDE, T_INCLUDE_ONCE, T_INSTANCEOF;
+use const T_INTERFACE, T_ISSET, T_LIST, T_LNUMBER, T_LOGICAL_AND, T_LOGICAL_OR, T_LOGICAL_XOR, T_MATCH;
+use const T_NAMESPACE, T_NEW, T_NS_SEPARATOR, T_NULLSAFE_OBJECT_OPERATOR, T_OBJECT_OPERATOR, T_PAAMAYIM_NEKUDOTAYIM;
+use const T_POW, T_PRINT, T_PRIVATE, T_PROTECTED, T_PUBLIC, T_READONLY, T_REQUIRE, T_REQUIRE_ONCE;
+use const T_RETURN, T_SPACESHIP, T_STATIC, T_SWITCH, T_THROW, T_TRAIT, T_TRY, T_USE;
+use const T_VARIABLE, T_WHILE, T_YIELD;
+
 class ErrorHandler
 {
     protected static string $root = '';
@@ -75,7 +87,7 @@ class ErrorHandler
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width,initial-scale=1">'
             .'<title>'.htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8').'</title>'
-            .'<link rel="stylesheet" href="/css/app.css">'
+            .static::styles()
             .'</head><body class="bg-base text-text antialiased text-sm font-sans leading-relaxed">'
             .'<div class="flex min-h-screen flex-col items-center justify-center px-6 text-center">'
             .'<div class="pointer-events-none mb-8 select-none text-[120px] font-extrabold leading-none text-surface2">'.$e->status().'</div>'
@@ -162,7 +174,7 @@ class ErrorHandler
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width,initial-scale=1">'
             .'<title>'.$class.'</title>'
-            .'<link rel="stylesheet" href="/css/app.css">'
+            .static::styles()
             .'</head><body class="bg-base text-text antialiased text-sm font-sans leading-relaxed">'
             .'<header class="sticky top-0 z-10 flex items-center justify-between border-b border-surface2 bg-surface px-6 py-3.5 backdrop-blur">'
             .'<span class="font-bold tracking-wide text-blue">Oscryn</span>'
@@ -190,7 +202,7 @@ class ErrorHandler
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width,initial-scale=1">'
             .'<title>Oscryn &middot; 500</title>'
-            .'<link rel="stylesheet" href="/css/app.css">'
+            .static::styles()
             .'</head><body class="bg-base text-text antialiased text-sm font-sans leading-relaxed">'
             .'<div class="flex min-h-screen flex-col items-center justify-center px-6 text-center">'
             .'<div class="pointer-events-none mb-8 select-none text-[120px] font-extrabold leading-none text-surface2">500</div>'
@@ -199,6 +211,120 @@ class ErrorHandler
             .'</div></body></html>';
 
         exit(1);
+    }
+
+    protected static function styles(): string
+    {
+        return <<<'CSS'
+<style>
+:root{
+    --base:#1e1e2e;--mantle:#181825;--surface:#313244;--surface2:#585b70;
+    --text:#cdd6f4;--subtext:#a6adc8;--muted:#6c7086;
+    --blue:#89b4fa;--green:#a6e3a1;--red:#f38ba8;--peach:#fab387;--yellow:#f9e2af;--mauve:#cba6f7;
+}
+*{box-sizing:border-box}
+html{background:var(--base)}
+body{margin:0;background:var(--base);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.6}
+a{text-decoration:none}
+.font-sans{font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace}
+.bg-base{background:var(--base)}
+.bg-surface{background:var(--surface)}
+.bg-surface2{background:var(--surface2)}
+.bg-mantle{background:var(--mantle)}
+.bg-red{background:var(--red)}
+.bg-blue{background:var(--blue)}
+.text-text{color:var(--text)}
+.text-subtext{color:var(--subtext)}
+.text-muted{color:var(--muted)}
+.text-blue{color:var(--blue)}
+.text-red{color:var(--red)}
+.text-peach{color:var(--peach)}
+.text-base{color:var(--base)}
+.text-surface2{color:var(--surface2)}
+.text-sm{font-size:14px}
+.text-xs{font-size:12px}
+.text-xl{font-size:20px}
+.text-2xl{font-size:24px}
+.text-\[13px\]{font-size:13px}
+.text-\[120px\]{font-size:120px}
+.text-\[140px\]{font-size:140px}
+.leading-relaxed{line-height:1.6}
+.leading-none{line-height:1}
+.font-bold{font-weight:700}
+.font-extrabold{font-weight:800}
+.tracking-wide{letter-spacing:.025em}
+.tracking-widest{letter-spacing:.1em}
+.uppercase{text-transform:uppercase}
+.flex{display:flex}
+.flex-col{flex-direction:column}
+.items-center{align-items:center}
+.justify-center{justify-content:center}
+.justify-between{justify-content:space-between}
+.min-h-screen{min-height:100vh}
+.text-center{text-align:center}
+.sticky{position:sticky}
+.top-0{top:0}
+.z-10{z-index:10}
+.relative{position:relative}
+.absolute{position:absolute}
+.-top-7{top:-28px}
+.right-0{right:0}
+.px-0{padding-left:0;padding-right:0}
+.px-3{padding-left:12px;padding-right:12px}
+.px-4{padding-left:16px;padding-right:16px}
+.px-6{padding-left:24px;padding-right:24px}
+.py-0\.5{padding-top:2px;padding-bottom:2px}
+.py-1{padding-top:4px;padding-bottom:4px}
+.py-2{padding-top:8px;padding-bottom:8px}
+.py-3{padding-top:12px;padding-bottom:12px}
+.py-3\.5{padding-top:14px;padding-bottom:14px}
+.pt-2{padding-top:8px}
+.pt-10{padding-top:40px}
+.pb-3{padding-bottom:12px}
+.pb-8{padding-bottom:32px}
+.pb-20{padding-bottom:80px}
+.m-0{margin:0}
+.mt-6{margin-top:24px}
+.mb-2{margin-bottom:8px}
+.mb-5{margin-bottom:20px}
+.mb-8{margin-bottom:32px}
+.mx-auto{margin-left:auto;margin-right:auto}
+.ml-auto{margin-left:auto}
+.rounded-full{border-radius:9999px}
+.rounded-lg{border-radius:8px}
+.rounded-xl{border-radius:12px}
+.border-b{border-bottom:1px solid}
+.border-surface2{border-color:var(--surface2)}
+.shadow-\[0_4px_20px_rgba\(0\,0\,0\,0\.35\)\]{box-shadow:0 4px 20px rgba(0,0,0,.35)}
+.overflow-hidden{overflow:hidden}
+.overflow-x-auto{overflow-x:auto}
+.whitespace-nowrap{white-space:nowrap}
+.text-ellipsis{text-overflow:ellipsis}
+.flex-none{flex:none}
+.gap-3\.5{gap:14px}
+.cursor-pointer{cursor:pointer}
+.pointer-events-none{pointer-events:none}
+.select-none{user-select:none}
+.backdrop-blur{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.transition-transform{transition:transform .15s ease}
+.max-w-md{max-width:28rem}
+.max-w-\[920px\]{max-width:920px}
+.last\:border-0:last-child{border-bottom:0}
+.hover\:-translate-y-px:hover{transform:translateY(-1px)}
+.code-line{display:block;padding:0 16px}
+.code-line.error{background:rgba(243,139,168,.1);box-shadow:inset 3px 0 0 var(--red)}
+.line-num{display:inline-block;width:3.5em;padding-right:16px;color:var(--muted);text-align:right;user-select:none}
+.line-code{white-space:pre}
+.t-plain{color:var(--text)}
+.t-variable{color:#94e2d5}
+.t-comment{color:var(--muted);font-style:italic}
+.t-number{color:var(--blue)}
+.t-string{color:var(--green)}
+.t-keyword{color:var(--yellow)}
+.t-operator{color:var(--mauve)}
+</style>
+CSS;
     }
 
     protected static function log(Throwable $e): void
@@ -412,21 +538,21 @@ class ErrorHandler
     protected static function tokenClass(int $id): string
     {
         return match ($id) {
-            \T_VARIABLE => 'variable',
-            \T_COMMENT, \T_DOC_COMMENT => 'comment',
-            \T_LNUMBER, \T_DNUMBER => 'number',
-            \T_CONSTANT_ENCAPSED_STRING, \T_ENCAPSED_AND_WHITESPACE => 'string',
-            \T_IF, \T_ELSE, \T_ELSEIF, \T_ENDIF, \T_FOR, \T_ENDFOR, \T_FOREACH, \T_ENDFOREACH, \T_WHILE,
-            \T_ENDWHILE, \T_DO, \T_SWITCH, \T_ENDSWITCH, \T_CASE, \T_DEFAULT, \T_BREAK, \T_CONTINUE,
-            \T_RETURN, \T_FUNCTION, \T_CLASS, \T_NEW, \T_PUBLIC, \T_PROTECTED, \T_PRIVATE, \T_STATIC,
-            \T_ABSTRACT, \T_FINAL, \T_USE, \T_NAMESPACE, \T_ECHO, \T_CONST, \T_EXTENDS, \T_IMPLEMENTS,
-            \T_INTERFACE, \T_TRAIT, \T_TRY, \T_CATCH, \T_THROW, \T_AS, \T_ARRAY, \T_INSTANCEOF,
-            \T_EXIT, \T_LIST, \T_PRINT, \T_CLONE, \T_GLOBAL, \T_ISSET, \T_EMPTY,
-            \T_INCLUDE, \T_INCLUDE_ONCE, \T_REQUIRE, \T_REQUIRE_ONCE, \T_MATCH, \T_ENUM, \T_READONLY,
-            \T_YIELD, \T_GOTO, \T_BOOLEAN_AND, \T_BOOLEAN_OR, \T_LOGICAL_AND, \T_LOGICAL_OR,
-            \T_LOGICAL_XOR, \T_COALESCE, \T_COALESCE_EQUAL, \T_SPACESHIP, \T_POW, \T_INC, \T_DEC => 'keyword',
-            \T_OBJECT_OPERATOR, \T_DOUBLE_ARROW, \T_PAAMAYIM_NEKUDOTAYIM, \T_NS_SEPARATOR,
-            \T_NULLSAFE_OBJECT_OPERATOR, \T_ATTRIBUTE => 'operator',
+            T_VARIABLE => 'variable',
+            T_COMMENT, T_DOC_COMMENT => 'comment',
+            T_LNUMBER, T_DNUMBER => 'number',
+            T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE => 'string',
+            T_IF, T_ELSE, T_ELSEIF, T_ENDIF, T_FOR, T_ENDFOR, T_FOREACH, T_ENDFOREACH, T_WHILE,
+            T_ENDWHILE, T_DO, T_SWITCH, T_ENDSWITCH, T_CASE, T_DEFAULT, T_BREAK, T_CONTINUE,
+            T_RETURN, T_FUNCTION, T_CLASS, T_NEW, T_PUBLIC, T_PROTECTED, T_PRIVATE, T_STATIC,
+            T_ABSTRACT, T_FINAL, T_USE, T_NAMESPACE, T_ECHO, T_CONST, T_EXTENDS, T_IMPLEMENTS,
+            T_INTERFACE, T_TRAIT, T_TRY, T_CATCH, T_THROW, T_AS, T_ARRAY, T_INSTANCEOF,
+            T_EXIT, T_LIST, T_PRINT, T_CLONE, T_GLOBAL, T_ISSET, T_EMPTY,
+            T_INCLUDE, T_INCLUDE_ONCE, T_REQUIRE, T_REQUIRE_ONCE, T_MATCH, T_ENUM, T_READONLY,
+            T_YIELD, T_GOTO, T_BOOLEAN_AND, T_BOOLEAN_OR, T_LOGICAL_AND, T_LOGICAL_OR,
+            T_LOGICAL_XOR, T_COALESCE, T_COALESCE_EQUAL, T_SPACESHIP, T_POW, T_INC, T_DEC => 'keyword',
+            T_OBJECT_OPERATOR, T_DOUBLE_ARROW, T_PAAMAYIM_NEKUDOTAYIM, T_NS_SEPARATOR,
+            T_NULLSAFE_OBJECT_OPERATOR, T_ATTRIBUTE => 'operator',
             default => 'plain',
         };
     }
