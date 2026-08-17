@@ -1,0 +1,18 @@
+{
+    "name": "oscryn/framework",
+    "description": "Oscryn — a tiny, modern PHP framework.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.1",
+        "latte/latte": "^3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Oscryn\\": "src/Oscryn/"
+        },
+        "files": [
+            "helpers.php"
+        ]
+    }
+}
