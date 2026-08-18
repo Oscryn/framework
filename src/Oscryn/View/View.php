@@ -3,6 +3,7 @@
 namespace Oscryn\View;
 
 use Latte\Engine;
+use Latte\Runtime\Html;
 use Oscryn\Http\Csrf;
 use Oscryn\Http\Response;
 
@@ -47,7 +48,7 @@ class View
         $engine->setTempDirectory(static::$cachePath);
         $engine->setAutoRefresh(true);
 
-        $engine->addFunction('csrf_field', static fn (): string => Csrf::field());
+        $engine->addFunction('csrf_field', static fn (): Html => new Html(Csrf::field()));
         $engine->addFunction('csrf_token', static fn (): string => Csrf::token());
 
         return $engine;
