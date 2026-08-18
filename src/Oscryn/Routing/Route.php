@@ -4,7 +4,10 @@ namespace Oscryn\Routing;
 
 use Closure;
 use InvalidArgumentException;
+use Oscryn\Http\Request;
 use Oscryn\Http\Response;
+use ReflectionFunction;
+use ReflectionNamedType;
 
 class Route
 {
@@ -38,7 +41,39 @@ class Route
 
     public function run(): Response
     {
-        return Response::from($this->resolveAction()(...array_values($this->parameters)));
+        $action = $this->resolveAction();
+
+        return Response::from($action(...$this->actionArguments($action)));
+    }
+
+    protected function actionArguments(callable $action): array
+    {
+        $arguments = [];
+
+        foreach ((new ReflectionFunction(Closure::fromCallable($action)))->getParameters() as $parameter) {
+            $type = $parameter->getType();
+
+            if ($type instanceof ReflectionNamedType
+                && !$type->isBuiltin()
+                && is_a($type->getName(), Request::class, true)) {
+                $arguments[] = Request::capture();
+                continue;
+            }
+
+            if ($this->parameters !== []) {
+                $arguments[] = array_shift($this->parameters);
+                continue;
+            }
+
+            if ($parameter->isDefaultValueAvailable()) {
+                $arguments[] = $parameter->getDefaultValue();
+                continue;
+            }
+
+            $arguments[] = null;
+        }
+
+        return $arguments;
     }
 
     protected function regex(): string
