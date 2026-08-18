@@ -84,6 +84,10 @@ class ErrorHandler
 
         http_response_code($e->status());
 
+        $hint = $e->hint() !== ''
+            ? '<p class="mt-2 max-w-md text-sm text-subtext">'.htmlspecialchars($e->hint(), ENT_QUOTES, 'UTF-8').'</p>'
+            : '';
+
         echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             .'<meta name="viewport" content="width=device-width,initial-scale=1">'
             .'<title>'.htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8').'</title>'
@@ -92,6 +96,7 @@ class ErrorHandler
             .'<div class="flex min-h-screen flex-col items-center justify-center px-6 text-center">'
             .'<div class="pointer-events-none mb-8 select-none text-[120px] font-extrabold leading-none text-surface2">'.$e->status().'</div>'
             .'<h1 class="mb-2 text-2xl font-bold text-text">'.htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8').'</h1>'
+            .$hint
             .'<a href="/" class="mt-6 rounded-lg bg-blue px-4 py-2 text-sm font-bold text-base transition-transform hover:-translate-y-px">Back home</a>'
             .'</div></body></html>';
 

@@ -2,6 +2,7 @@
 
 namespace Oscryn\Routing;
 
+use Closure;
 use Oscryn\Exceptions\HttpException;
 use Oscryn\Http\Csrf;
 use Oscryn\Http\Request;
@@ -15,11 +16,18 @@ class Router
 
     protected array $routes = [];
 
+    protected array $middleware = [];
+
     protected array $groupStack = [];
 
     public static function instance(): self
     {
         return static::$instance ??= new static();
+    }
+
+    public static function flush(): void
+    {
+        static::$instance = new static();
     }
 
     public static function get(string $uri, mixed $action): Route
@@ -56,6 +64,13 @@ class Router
         );
     }
 
+    public static function middleware(array|string $middleware): void
+    {
+        foreach ((array) $middleware as $name) {
+            static::instance()->middleware[] = $name;
+        }
+    }
+
     public static function group(array $attributes, callable $callback): void
     {
         static::instance()->addGroup($attributes, $callback);
@@ -89,16 +104,45 @@ class Router
         if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)
             && !Csrf::isExcept($path)
             && !Csrf::validate($request)) {
-            throw new HttpException(419, 'Page Expired');
+            throw new HttpException(
+                419,
+                'Page Expired',
+                'Your CSRF token is missing or invalid. Include a hidden {csrf_field()} (or @csrf) in your form and avoid resubmitting expired sessions.'
+            );
         }
 
         foreach ($this->routes as $route) {
             if ($route->matches($method, $path)) {
-                return $route->run();
+                return $this->runMiddleware(
+                    array_merge($this->middleware, $route->getMiddleware()),
+                    $request,
+                    static fn (Request $request): Response => $route->run()
+                );
             }
         }
 
-        throw new HttpException(404);
+        throw new HttpException(404, 'Not Found', 'No route matched '.$method.' '.$path.'.');
+    }
+
+    protected function runMiddleware(array $middleware, Request $request, Closure $core): Response
+    {
+        $pipeline = array_reduce(
+            array_reverse($middleware),
+            static function (callable $next, mixed $middleware): Closure {
+                return static function (Request $request) use ($next, $middleware): Response {
+                    if ($middleware instanceof Closure) {
+                        return $middleware($request, $next);
+                    }
+
+                    $instance = is_string($middleware) ? new $middleware() : $middleware;
+
+                    return $instance->handle($request, $next);
+                };
+            },
+            $core
+        );
+
+        return $pipeline($request);
     }
 
     protected function prefixUri(string $uri): string

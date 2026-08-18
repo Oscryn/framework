@@ -9,6 +9,7 @@ use Oscryn\Database\Paginator;
 use Oscryn\Database\QueryBuilder;
 use Oscryn\Database\Relations\BelongsTo;
 use Oscryn\Database\Relations\HasMany;
+use Oscryn\Exceptions\ModelNotFoundException;
 use ReflectionClass;
 use RuntimeException;
 
@@ -19,6 +20,8 @@ abstract class Model extends DBConnector implements JsonSerializable
     protected const SOFT_DELETES = false;
 
     protected array $attributes = [];
+
+    protected array $original = [];
 
     protected array $casts = [];
 
@@ -72,6 +75,47 @@ abstract class Model extends DBConnector implements JsonSerializable
         return static::query()->find($id);
     }
 
+    public static function findOrFail(mixed $id): static
+    {
+        return static::query()->findOrFail($id);
+    }
+
+    public static function firstOrFail(): static
+    {
+        $model = static::query()->first();
+
+        if ($model === null) {
+            throw new ModelNotFoundException(static::class);
+        }
+
+        return $model;
+    }
+
+    public static function firstWhere(array $wheres): ?static
+    {
+        return static::query()->firstWhere($wheres);
+    }
+
+    public static function firstOrCreate(array $attributes, array $values = []): static
+    {
+        if (($model = static::firstWhere($attributes)) !== null) {
+            return $model;
+        }
+
+        return static::create(array_merge($attributes, $values));
+    }
+
+    public static function updateOrCreate(array $attributes, array $values = []): static
+    {
+        if (($model = static::firstWhere($attributes)) !== null) {
+            $model->fill($values)->save();
+
+            return $model;
+        }
+
+        return static::create(array_merge($attributes, $values));
+    }
+
     public static function create(array $attributes): static
     {
         $model = new static($attributes);
@@ -93,6 +137,7 @@ abstract class Model extends DBConnector implements JsonSerializable
     public static function fromRow(array $row): static
     {
         $model = (new static)->forceFill($row);
+        $model->syncOriginal();
         $model->exists = true;
 
         return $model;
@@ -107,7 +152,11 @@ abstract class Model extends DBConnector implements JsonSerializable
     {
         foreach ($attributes as $key => $value) {
             if ($this->fillable !== [] && !in_array($key, $this->fillable, true)) {
-                continue;
+                throw new RuntimeException(sprintf(
+                    'Add "%s" to the $fillable property of %s to allow mass assignment, or use forceFill().',
+                    $key,
+                    static::class
+                ));
             }
 
             $this->setAttribute($key, $value);
@@ -146,6 +195,50 @@ abstract class Model extends DBConnector implements JsonSerializable
     public function getAttributes(): array
     {
         return $this->attributes;
+    }
+
+    public function getOriginal(?string $key = null, mixed $default = null): mixed
+    {
+        if ($key === null) {
+            return $this->original;
+        }
+
+        return $this->original[$key] ?? $default;
+    }
+
+    public function getDirty(): array
+    {
+        $dirty = [];
+
+        foreach ($this->attributes as $key => $value) {
+            if (!array_key_exists($key, $this->original) || $value !== $this->original[$key]) {
+                $dirty[$key] = $value;
+            }
+        }
+
+        return $dirty;
+    }
+
+    public function isDirty(?string $key = null): bool
+    {
+        if ($key !== null) {
+            return array_key_exists($key, $this->attributes)
+                && (!array_key_exists($key, $this->original) || $this->attributes[$key] !== $this->original[$key]);
+        }
+
+        return $this->getDirty() !== [];
+    }
+
+    public function isClean(?string $key = null): bool
+    {
+        return !$this->isDirty($key);
+    }
+
+    public function syncOriginal(): static
+    {
+        $this->original = $this->attributes;
+
+        return $this;
     }
 
     public function getCasts(): array
@@ -331,6 +424,7 @@ abstract class Model extends DBConnector implements JsonSerializable
         $id = static::query()->insert($this->attributes);
         $this->attributes['id'] = $id;
         $this->exists = true;
+        $this->syncOriginal();
 
         return true;
     }
@@ -345,7 +439,14 @@ abstract class Model extends DBConnector implements JsonSerializable
             $this->attributes['updated_at'] = date('Y-m-d H:i:s');
         }
 
-        static::query()->where('id', $this->getKey())->update($this->attributes);
+        $dirty = $this->getDirty();
+
+        if ($dirty === []) {
+            return true;
+        }
+
+        static::query()->where('id', $this->getKey())->update($dirty);
+        $this->syncOriginal();
 
         return true;
     }

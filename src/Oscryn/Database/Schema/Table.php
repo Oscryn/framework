@@ -6,6 +6,8 @@ class Table
 {
     protected string $name;
     protected array $columns = [];
+    protected array $indexes = [];
+    protected array $foreignKeys = [];
 
     public function __construct(string $name)
     {
@@ -175,6 +177,36 @@ class Table
         return $this->timestamp($column)->nullable();
     }
 
+    public function foreign(string $column): ForeignKey
+    {
+        $foreign = new ForeignKey($this->name, $column);
+        $this->foreignKeys[] = $foreign;
+
+        return $foreign;
+    }
+
+    public function index(string|array $columns, ?string $name = null): void
+    {
+        $columns = (array) $columns;
+
+        $this->indexes[] = [
+            'columns' => $columns,
+            'name'    => $name ?? $this->indexName($columns, 'index'),
+            'unique'  => false,
+        ];
+    }
+
+    public function unique(string|array $columns, ?string $name = null): void
+    {
+        $columns = (array) $columns;
+
+        $this->indexes[] = [
+            'columns' => $columns,
+            'name'    => $name ?? $this->indexName($columns, 'unique'),
+            'unique'  => true,
+        ];
+    }
+
     public function columns(): array
     {
         return $this->columns;
@@ -188,6 +220,11 @@ class Table
         return $column;
     }
 
+    protected function indexName(array $columns, string $type): string
+    {
+        return $this->name.'_'.implode('_', $columns).'_'.$type;
+    }
+
     public function toCreateSql(): string
     {
         $definitions = array_map(static fn (Column $column) => $column->toSql(), $this->columns);
@@ -196,6 +233,14 @@ class Table
             if ($column->unique) {
                 $definitions[] = "UNIQUE KEY `{$column->name}_unique` (`{$column->name}`)";
             }
+        }
+
+        foreach ($this->indexes as $index) {
+            $definitions[] = $this->indexDefinition($index);
+        }
+
+        foreach ($this->foreignKeys as $foreign) {
+            $definitions[] = $foreign->toSql();
         }
 
         return 'CREATE TABLE `'.$this->name.'` ('
@@ -222,6 +267,22 @@ class Table
             $definitions[] = $sql;
         }
 
+        foreach ($this->indexes as $index) {
+            $definitions[] = 'ADD '.$this->indexDefinition($index);
+        }
+
+        foreach ($this->foreignKeys as $foreign) {
+            $definitions[] = 'ADD '.$foreign->toSql();
+        }
+
         return 'ALTER TABLE `'.$this->name.'` '.implode(', ', $definitions);
+    }
+
+    protected function indexDefinition(array $index): string
+    {
+        $type = $index['unique'] ? 'UNIQUE KEY' : 'KEY';
+        $columns = '`'.implode('`, `', $index['columns']).'`';
+
+        return $type." `{$index['name']}` ({$columns})";
     }
 }
