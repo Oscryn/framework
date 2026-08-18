@@ -6,6 +6,7 @@ use Closure;
 use InvalidArgumentException;
 use Oscryn\Exceptions\HttpException;
 use Oscryn\Extensions\Model;
+use Oscryn\Http\FormRequest;
 use Oscryn\Http\Request;
 use Oscryn\Http\Response;
 use ReflectionFunction;
@@ -72,6 +73,13 @@ class Route
         foreach ((new ReflectionFunction(Closure::fromCallable($action)))->getParameters() as $parameter) {
             $type = $parameter->getType();
             $name = $parameter->getName();
+
+            if ($this->isType($type, FormRequest::class)) {
+                $formRequest = $type->getName()::capture();
+                $formRequest->validateResolved();
+                $arguments[] = $formRequest;
+                continue;
+            }
 
             if ($this->isType($type, Request::class)) {
                 $arguments[] = Request::capture();
