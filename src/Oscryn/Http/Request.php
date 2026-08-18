@@ -25,7 +25,17 @@ class Request
 
     public function method(): string
     {
-        return strtoupper($this->server['REQUEST_METHOD'] ?? 'GET');
+        $method = strtoupper($this->server['REQUEST_METHOD'] ?? 'GET');
+
+        if ($method === 'POST') {
+            $spoofed = $this->body['_method'] ?? null;
+
+            if (is_string($spoofed) && in_array(strtoupper($spoofed), ['PUT', 'PATCH', 'DELETE'], true)) {
+                $method = strtoupper($spoofed);
+            }
+        }
+
+        return $method;
     }
 
     public function path(): string

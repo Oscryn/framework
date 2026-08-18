@@ -13,8 +13,10 @@ abstract class DBConnector
     public static function connection(): PDO
     {
         if (self::$connection === null) {
+            $driver = strtolower(self::env('DB_DRIVER', self::env('DB_CONNECTION', 'mysql')));
+
             self::$connection = new PDO(
-                'mysql:host='.self::env('DB_HOST', '127.0.0.1').';dbname='.self::env('DB_NAME', 'test'),
+                self::dsn($driver),
                 self::env('DB_USER', 'root'),
                 self::env('DB_PASSWORD', ''),
                 [
@@ -25,6 +27,25 @@ abstract class DBConnector
         }
 
         return self::$connection;
+    }
+
+    public static function purge(): void
+    {
+        self::$connection = null;
+    }
+
+    public static function driver(): string
+    {
+        return strtolower(self::env('DB_DRIVER', self::env('DB_CONNECTION', 'mysql')));
+    }
+
+    protected static function dsn(string $driver): string
+    {
+        return match ($driver) {
+            'sqlite', 'sqlite3' => 'sqlite:'.self::env('DB_NAME', ':memory:'),
+            'pgsql' => 'pgsql:host='.self::env('DB_HOST', '127.0.0.1').';dbname='.self::env('DB_NAME', 'test'),
+            default => 'mysql:host='.self::env('DB_HOST', '127.0.0.1').';dbname='.self::env('DB_NAME', 'test'),
+        };
     }
 
     public static function beginTransaction(): void
@@ -60,6 +81,22 @@ abstract class DBConnector
 
     public static function ensureDatabaseExists(): bool
     {
+        $driver = self::driver();
+
+        if ($driver === 'sqlite' || $driver === 'sqlite3') {
+            $database = self::env('DB_NAME', ':memory:');
+
+            if ($database !== ':memory:' && !is_file($database)) {
+                $dir = dirname($database);
+
+                if ($dir !== '' && !is_dir($dir)) {
+                    mkdir($dir, 0777, true);
+                }
+            }
+
+            return false;
+        }
+
         $host = self::env('DB_HOST', '127.0.0.1');
         $user = self::env('DB_USER', 'root');
         $password = self::env('DB_PASSWORD', '');

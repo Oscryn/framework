@@ -50,6 +50,9 @@ class View
 
         $engine->addFunction('csrf_field', static fn (): Html => new Html(Csrf::field()));
         $engine->addFunction('csrf_token', static fn (): string => Csrf::token());
+        $engine->addFunction('paginate', static fn (mixed $paginator): Html => new Html(
+            is_object($paginator) && method_exists($paginator, 'links') ? $paginator->links() : ''
+        ));
 
         return $engine;
     }

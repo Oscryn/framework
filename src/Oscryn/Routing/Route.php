@@ -4,10 +4,13 @@ namespace Oscryn\Routing;
 
 use Closure;
 use InvalidArgumentException;
+use Oscryn\Exceptions\HttpException;
+use Oscryn\Extensions\Model;
 use Oscryn\Http\Request;
 use Oscryn\Http\Response;
 use ReflectionFunction;
 use ReflectionNamedType;
+use ReflectionType;
 
 class Route
 {
@@ -15,6 +18,7 @@ class Route
     protected string $uri;
     protected mixed $action;
     protected array $parameters = [];
+    protected array $middleware = [];
     protected ?string $compiledRegex = null;
 
     public function __construct(array $methods, string $uri, mixed $action)
@@ -22,6 +26,20 @@ class Route
         $this->methods = array_map('strtoupper', $methods);
         $this->uri = $uri;
         $this->action = $action;
+    }
+
+    public function middleware(array|string|Closure $middleware): static
+    {
+        foreach ((array) $middleware as $name) {
+            $this->middleware[] = $name;
+        }
+
+        return $this;
+    }
+
+    public function getMiddleware(): array
+    {
+        return $this->middleware;
     }
 
     public function matches(string $method, string $path): bool
@@ -49,19 +67,25 @@ class Route
     protected function actionArguments(callable $action): array
     {
         $arguments = [];
+        $parameters = $this->parameters;
 
         foreach ((new ReflectionFunction(Closure::fromCallable($action)))->getParameters() as $parameter) {
             $type = $parameter->getType();
+            $name = $parameter->getName();
 
-            if ($type instanceof ReflectionNamedType
-                && !$type->isBuiltin()
-                && is_a($type->getName(), Request::class, true)) {
+            if ($this->isType($type, Request::class)) {
                 $arguments[] = Request::capture();
                 continue;
             }
 
-            if ($this->parameters !== []) {
-                $arguments[] = array_shift($this->parameters);
+            if ($this->isType($type, Model::class)) {
+                $arguments[] = $this->resolveModel($type, $name, $parameters, $parameter->isDefaultValueAvailable(), $parameter->allowsNull());
+                unset($parameters[$name]);
+                continue;
+            }
+
+            if ($parameters !== []) {
+                $arguments[] = array_shift($parameters);
                 continue;
             }
 
@@ -74,6 +98,30 @@ class Route
         }
 
         return $arguments;
+    }
+
+    protected function resolveModel(ReflectionNamedType $type, string $name, array $parameters, bool $hasDefault, bool $allowsNull): mixed
+    {
+        $value = $parameters[$name] ?? $parameters['id'] ?? null;
+
+        if ($value === null) {
+            if ($hasDefault || $allowsNull) {
+                return null;
+            }
+
+            throw new HttpException(404);
+        }
+
+        $class = $type->getName();
+
+        return $class::findOrFail($value);
+    }
+
+    protected function isType(?ReflectionType $type, string $class): bool
+    {
+        return $type instanceof ReflectionNamedType
+            && !$type->isBuiltin()
+            && is_a($type->getName(), $class, true);
     }
 
     protected function regex(): string

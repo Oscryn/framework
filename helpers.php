@@ -1,5 +1,6 @@
 <?php
 
+use Oscryn\Auth\Auth;
 use Oscryn\Database\DBConnector;
 use Oscryn\Encryption\Encrypter;
 use Oscryn\Http\Csrf;
@@ -117,6 +118,13 @@ if (!function_exists('db')) {
     function db(): PDO
     {
         return DBConnector::connection();
+    }
+}
+
+if (!function_exists('auth')) {
+    function auth(): Auth
+    {
+        return Auth::instance();
     }
 }
 
